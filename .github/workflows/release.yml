@@ -65,7 +65,7 @@ jobs:
             mkdir -p "$release_dir"
             
             # Build binary
-            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -o "$release_dir/$output_name" cmd/prymis/main.go
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -o "$release_dir/$output_name" ./cmd/prymis
             
             # Copy project structure as requested
             cp -r engine "$release_dir/"
