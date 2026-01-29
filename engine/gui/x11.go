@@ -94,7 +94,7 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 	binary.LittleEndian.PutUint16(createBuf[20:22], 0) // border
 	binary.LittleEndian.PutUint16(createBuf[22:24], 1) // InputOutput
 	binary.LittleEndian.PutUint32(createBuf[24:28], visualID)
-	binary.LittleEndian.PutUint32(createBuf[28:32], 0x800)    // background-pixel mask
+	binary.LittleEndian.PutUint32(createBuf[28:32], 0x02)     // background-pixel mask (was 0x800)
 	binary.LittleEndian.PutUint32(createBuf[32:36], 0xFFFFFF) // white
 
 	_, err = conn.Write(createBuf)
@@ -120,6 +120,21 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 	binary.LittleEndian.PutUint16(mapBuf[2:4], 2)
 	binary.LittleEndian.PutUint32(mapBuf[4:8], wid)
 	_, err = conn.Write(mapBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	// 5. Sync: Send GetInputFocus (Opcode 43) and wait for reply to ensure window is ready
+	syncBuf := make([]byte, 4)
+	syncBuf[0] = 43 // GetInputFocus
+	binary.LittleEndian.PutUint16(syncBuf[2:4], 1)
+	_, err = conn.Write(syncBuf)
+	if err != nil {
+		return nil, err
+	}
+
+	reply := make([]byte, 32)
+	_, err = conn.Read(reply)
 	if err != nil {
 		return nil, err
 	}

@@ -47,15 +47,17 @@ func main() {
 		}
 	}()
 
-	fmt.Println("Prymis is ready. Type anything in the terminal to see it rendered in the browser window!")
+	fmt.Println("Prymis is ready! Enter an HTTP URL to browse.")
+	fmt.Print("> ")
 
 	// 3. Main Loop
+	needsRender := true
 	for {
 		select {
 		case input := <-inputChan:
-			fmt.Printf("Navigating to: %s\n", input)
 			currentURL = input
 			if strings.HasPrefix(input, "http") {
+				fmt.Printf("Navigating to: %s\n", input)
 				resp, err := http.Get(input)
 				if err == nil {
 					body, _ := io.ReadAll(resp.Body)
@@ -65,29 +67,30 @@ func main() {
 					html = fmt.Sprintf("<html><body><h1>Error</h1><p>%v</p></body></html>", err)
 				}
 			} else {
-				// Search simulation
-				html = strings.Replace(html, "Type URL in terminal to browse (Demo)", input, 1)
+				// Local search/input
+				html = fmt.Sprintf("<html><body><div class='container'><div class='header'>Prymis Search</div><div class='content'><div class='main'>You entered: %s</div></div></div></body></html>", input)
 			}
-			if strings.Contains(input, "red") {
-				css += ".main { background-color: red; }"
-			}
+			needsRender = true
+			fmt.Print("> ")
+
 		default:
-			// Continuous rendering (roughly 30fps)
-			p := parser.NewHTMLParser(html)
-			domTree := p.Parse()
-			cp := parser.NewCSSParser(css)
-			rules := cp.Parse()
-			styleTree := layout.NewStyledNode(domTree, rules)
-			layoutTree := layout.NewLayoutTree(styleTree)
-			viewport := layout.Dimensions{
-				Content: layout.Rect{X: 0, Y: 100, Width: 800, Height: 0},
+			if needsRender {
+				p := parser.NewHTMLParser(html)
+				domTree := p.Parse()
+				cp := parser.NewCSSParser(css)
+				rules := cp.Parse()
+				styleTree := layout.NewStyledNode(domTree, rules)
+				layoutTree := layout.NewLayoutTree(styleTree)
+				viewport := layout.Dimensions{
+					Content: layout.Rect{X: 0, Y: 100, Width: 800, Height: 0},
+				}
+				layoutTree.Layout(viewport)
+
+				canvas := render.Paint(layoutTree, image.Rect(0, 0, 800, 600), currentURL)
+				win.Draw(canvas)
+				needsRender = false
 			}
-			layoutTree.Layout(viewport)
-
-			canvas := render.Paint(layoutTree, image.Rect(0, 0, 800, 600), currentURL)
-			win.Draw(canvas)
-
-			time.Sleep(33 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 }

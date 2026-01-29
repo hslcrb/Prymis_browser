@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"prymis/engine/dom"
 	"strings"
 )
@@ -16,7 +15,6 @@ func NewHTMLParser(input string) *HTMLParser {
 }
 
 func (p *HTMLParser) Parse() *dom.Node {
-	fmt.Printf("Starting HTML Parse, input length: %d\n", len(p.input))
 	nodes := p.parseNodes()
 	if len(nodes) == 1 {
 		return nodes[0]

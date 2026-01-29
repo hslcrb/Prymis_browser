@@ -2,32 +2,25 @@
 
 # Prymis Browser Quick Run Script
 
-echo "🚀 Starting Prymis Browser Engine..."
-
-# 1. Check if Go is installed
+# 1. Determine Go Binary
 if ! command -v go &> /dev/null; then
-    # Try common local path if not in PATH
     if [ -f "/usr/local/go/bin/go" ]; then
         GO_BIN="/usr/local/go/bin/go"
     else
-        echo "❌ Error: Go is not installed or not in PATH."
+        echo "❌ Error: Go is not installed."
         exit 1
     fi
 else
     GO_BIN="go"
 fi
 
-# 2. Build or Run
-echo "📦 Compiling and Running..."
-$GO_BIN run ./cmd/prymis
+# 2. Build quietly
+$GO_BIN build -o prymis_gui ./cmd/prymis
 
-# 3. Check result
-if [ $? -eq 0 ]; then
-    echo "✅ Successfully rendered Prymis output!"
-    if [ -f "output.png" ]; then
-        echo "🖼️  Rendering saved to: output.png"
-    fi
+# 3. Execution
+if [ -f "./prymis_gui" ]; then
+    ./prymis_gui
 else
-    echo "❌ Execution failed."
+    echo "❌ Build failed."
     exit 1
 fi

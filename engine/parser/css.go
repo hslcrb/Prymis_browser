@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -25,7 +24,6 @@ func NewCSSParser(input string) *CSSParser {
 }
 
 func (p *CSSParser) Parse() []StyleRule {
-	fmt.Printf("Starting CSS Parse, input length: %d\n", len(p.input))
 	var rules []StyleRule
 	for !p.eof() {
 		p.consumeWhitespace()
