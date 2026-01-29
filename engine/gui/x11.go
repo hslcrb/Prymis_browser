@@ -30,6 +30,7 @@ type Event struct {
 const (
 	KeyPress        = 2
 	Expose          = 12
+	MapNotify       = 19
 	ConfigureNotify = 22
 )
 
@@ -125,7 +126,7 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 	binary.LittleEndian.PutUint32(createBuf[28:32], 0x806)
 	binary.LittleEndian.PutUint32(createBuf[32:36], 0xFFFFFF) // background white
 	binary.LittleEndian.PutUint32(createBuf[36:40], 0x000000) // border black
-	binary.LittleEndian.PutUint32(createBuf[40:44], 0x8001)   // KeyPress(1) | Exposure(0x8000)
+	binary.LittleEndian.PutUint32(createBuf[40:44], 0x18001)  // KeyPress(1) | Exposure(0x8000) | StructureNotify(0x10000)
 
 	conn.Write(createBuf)
 
@@ -147,6 +148,15 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 	binary.LittleEndian.PutUint16(mapBuf[2:4], 2)
 	binary.LittleEndian.PutUint32(mapBuf[4:8], wid)
 	conn.Write(mapBuf)
+
+	// 6. Wait for MapNotify to ensure window is visible
+	for {
+		ev := win.PollEvent()
+		if ev != nil && ev.Type == MapNotify {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	return win, nil
 }
@@ -198,56 +208,58 @@ func (w *X11Window) PollEvent() *Event {
 	evType := int(buf[0] & 0x7f)
 	switch evType {
 	case KeyPress:
-		keycode := buf[1]
-		// Incredibly primitive keycode to ASCII (US layout approximation)
-		// 10=1, 11=2... 24=q, 38=a, 52=z, 65=space
-		char := byte(0)
-		if keycode >= 24 && keycode <= 33 {
-			char = "qwertyuiop"[keycode-24]
-		}
-		if keycode >= 38 && keycode <= 46 {
-			char = "asdfghjkl"[keycode-38]
-		}
-		if keycode >= 52 && keycode <= 58 {
-			char = "zxcvbnm"[keycode-52]
-		}
-		if keycode == 65 {
-			char = ' '
-		}
-		if keycode == 22 {
-			char = 8
-		} // Backspace
-		if keycode == 36 {
-			char = 13
-		} // Enter
-		if keycode == 47 {
-			char = ';'
-		}
-		if keycode == 48 {
-			char = '\''
-		}
-		if keycode == 51 {
-			char = '\\'
-		}
-		if keycode == 59 {
-			char = ','
-		}
-		if keycode == 60 {
-			char = '.'
-		}
-		if keycode == 61 {
-			char = '/'
-		}
-		// Numbers
-		if keycode >= 10 && keycode <= 19 {
-			char = "1234567890"[keycode-10]
-		}
-
-		return &Event{Type: KeyPress, Key: char}
+		// ... key handling ...
+		return &Event{Type: KeyPress, Key: decodeKey(buf[1])}
 	case Expose:
 		return &Event{Type: Expose}
+	case MapNotify:
+		return &Event{Type: MapNotify}
 	}
 	return nil
+}
+
+func decodeKey(keycode byte) byte {
+	char := byte(0)
+	if keycode >= 24 && keycode <= 33 {
+		char = "qwertyuiop"[keycode-24]
+	}
+	if keycode >= 38 && keycode <= 46 {
+		char = "asdfghjkl"[keycode-38]
+	}
+	if keycode >= 52 && keycode <= 58 {
+		char = "zxcvbnm"[keycode-52]
+	}
+	if keycode == 65 {
+		char = ' '
+	}
+	if keycode == 22 {
+		char = 8
+	} // Backspace
+	if keycode == 36 {
+		char = 13
+	} // Enter
+	if keycode == 47 {
+		char = ';'
+	}
+	if keycode == 48 {
+		char = '\''
+	}
+	if keycode == 51 {
+		char = '\\'
+	}
+	if keycode == 59 {
+		char = ','
+	}
+	if keycode == 60 {
+		char = '.'
+	}
+	if keycode == 61 {
+		char = '/'
+	}
+	if keycode >= 10 && keycode <= 19 {
+		char = "1234567890"[keycode-10]
+	}
+	return char
 }
 
 func (w *X11Window) Draw(img *image.RGBA) error {
