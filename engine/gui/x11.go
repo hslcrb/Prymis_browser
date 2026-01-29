@@ -76,13 +76,19 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 		return nil, err
 	}
 
+	// Extract IDs and root window
 	resBase := binary.LittleEndian.Uint32(setupData[4:8])
 	resMask := binary.LittleEndian.Uint32(setupData[8:12])
 	vendorLen := binary.LittleEndian.Uint16(setupData[16:18])
 	numFormats := uint8(setupData[21])
+
+	// Skip formats
 	offset := 32 + int((vendorLen+3)&0xFFFC) + int(numFormats)*8
 
+	// Screen info
 	rootWindow := binary.LittleEndian.Uint32(setupData[offset : offset+4])
+	// Try to find a standard 24-bit or 32-bit depth
+	rootDepth := uint8(setupData[offset+21])
 	visualID := binary.LittleEndian.Uint32(setupData[offset+32 : offset+36])
 
 	wid := resBase | (1 & resMask)
@@ -94,26 +100,32 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 		gcid:     gcid,
 		width:    width,
 		height:   height,
-		depth:    24,
+		depth:    rootDepth,
 		visualID: visualID,
 		root:     rootWindow,
 	}
 
 	// 2. Create Window
-	// Mask: BackPixel (0x2) | EventMask (0x800)
-	createBuf := make([]byte, 44)
+	// Mask: BackPixel (0x2) | EventMask (0x800) | BorderPixel (0x4)
+	createBuf := make([]byte, 48)
 	createBuf[0] = 1 // CreateWindow
-	createBuf[1] = 24
-	binary.LittleEndian.PutUint16(createBuf[2:4], 11)
+	createBuf[1] = rootDepth
+	binary.LittleEndian.PutUint16(createBuf[2:4], 12)
 	binary.LittleEndian.PutUint32(createBuf[4:8], wid)
 	binary.LittleEndian.PutUint32(createBuf[8:12], rootWindow)
+	binary.LittleEndian.PutUint16(createBuf[12:14], 0) // x
+	binary.LittleEndian.PutUint16(createBuf[14:16], 0) // y
 	binary.LittleEndian.PutUint16(createBuf[16:18], width)
 	binary.LittleEndian.PutUint16(createBuf[18:20], height)
+	binary.LittleEndian.PutUint16(createBuf[20:22], 0) // border
 	binary.LittleEndian.PutUint16(createBuf[22:24], 1) // InputOutput
 	binary.LittleEndian.PutUint32(createBuf[24:28], visualID)
-	binary.LittleEndian.PutUint32(createBuf[28:32], 0x802)    // Mask
-	binary.LittleEndian.PutUint32(createBuf[32:36], 0xFFFFFF) // white
-	binary.LittleEndian.PutUint32(createBuf[36:40], 0x8001)   // KeyPress(1) | Exposure(0x8000)
+
+	// Value Mask: BackgroundPixel (0x2) | BorderPixel (0x4) | EventMask (0x800)
+	binary.LittleEndian.PutUint32(createBuf[28:32], 0x806)
+	binary.LittleEndian.PutUint32(createBuf[32:36], 0xFFFFFF) // background white
+	binary.LittleEndian.PutUint32(createBuf[36:40], 0x000000) // border black
+	binary.LittleEndian.PutUint32(createBuf[40:44], 0x8001)   // KeyPress(1) | Exposure(0x8000)
 
 	conn.Write(createBuf)
 
