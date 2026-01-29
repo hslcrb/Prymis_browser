@@ -139,7 +139,31 @@ func NewX11Window(width, height uint16) (*X11Window, error) {
 		return nil, err
 	}
 
+	win.SetTitle("Prymis Browser")
+
 	return win, nil
+}
+
+func (w *X11Window) SetTitle(title string) {
+	// ChangeProperty (Opcode 18)
+	// Mode 0 (Replace), Property 39 (WM_NAME), Type 31 (STRING), Format 8
+	data := []byte(title)
+	dataLen := len(data)
+	paddedLen := (dataLen + 3) & ^3
+	totalLen := 6 + paddedLen/4
+
+	buf := make([]byte, 24+paddedLen)
+	buf[0] = 18 // ChangeProperty
+	buf[1] = 0  // Replace
+	binary.LittleEndian.PutUint16(buf[2:4], uint16(totalLen))
+	binary.LittleEndian.PutUint32(buf[4:8], w.wid)
+	binary.LittleEndian.PutUint32(buf[8:12], 39)  // WM_NAME
+	binary.LittleEndian.PutUint32(buf[12:16], 31) // STRING
+	buf[16] = 8                                   // format
+	binary.LittleEndian.PutUint32(buf[20:24], uint32(dataLen))
+	copy(buf[24:], data)
+
+	w.conn.Write(buf)
 }
 
 func (w *X11Window) Draw(img *image.RGBA) error {

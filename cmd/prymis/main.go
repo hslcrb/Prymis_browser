@@ -75,19 +75,31 @@ func main() {
 
 		default:
 			if needsRender {
-				p := parser.NewHTMLParser(html)
-				domTree := p.Parse()
-				cp := parser.NewCSSParser(css)
-				rules := cp.Parse()
-				styleTree := layout.NewStyledNode(domTree, rules)
-				layoutTree := layout.NewLayoutTree(styleTree)
-				viewport := layout.Dimensions{
-					Content: layout.Rect{X: 0, Y: 100, Width: 800, Height: 0},
-				}
-				layoutTree.Layout(viewport)
+				// Safety: Recover from parser/layout panics on complex pages
+				canvas := func() *image.RGBA {
+					defer func() {
+						if r := recover(); r != nil {
+							fmt.Printf("⚠️ Render Panic: %v\n", r)
+						}
+					}()
 
-				canvas := render.Paint(layoutTree, image.Rect(0, 0, 800, 600), currentURL)
-				win.Draw(canvas)
+					p := parser.NewHTMLParser(html)
+					domTree := p.Parse()
+					cp := parser.NewCSSParser(css)
+					rules := cp.Parse()
+					styleTree := layout.NewStyledNode(domTree, rules)
+					layoutTree := layout.NewLayoutTree(styleTree)
+					viewport := layout.Dimensions{
+						Content: layout.Rect{X: 0, Y: 100, Width: 800, Height: 0},
+					}
+					layoutTree.Layout(viewport)
+
+					return render.Paint(layoutTree, image.Rect(0, 0, 800, 600), currentURL)
+				}()
+
+				if canvas != nil {
+					win.Draw(canvas)
+				}
 				needsRender = false
 			}
 			time.Sleep(100 * time.Millisecond)
