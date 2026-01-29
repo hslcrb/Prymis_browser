@@ -1,0 +1,107 @@
+name: Release and Package
+
+on:
+  push:
+    branches:
+      - main
+    tags-ignore:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Get next version
+        id: next_version
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $latest_tag"
+          
+          # Remove 'v' and split by '.'
+          version=${latest_tag#v}
+          IFS='.' read -r major minor patch <<< "$version"
+          
+          # Increment patch (or minor/major as needed, user asked for 1 up)
+          new_patch=$((patch + 1))
+          new_tag="v${major}.${minor}.${new_patch}"
+          
+          echo "Next tag: $new_tag"
+          echo "version=$new_tag" >> $GITHUB_OUTPUT
+
+      - name: Build for OSs
+        run: |
+          mkdir -p build
+          
+          # Platforms to build
+          platforms=("linux/amd64" "windows/amd64" "darwin/amd64")
+          
+          for platform in "${platforms[@]}"; do
+            platform_split=(${platform//\// })
+            GOOS=${platform_split[0]}
+            GOARCH=${platform_split[1]}
+            output_name="prymis"
+            if [ $GOOS = "windows" ]; then
+              output_name+='.exe'
+            fi
+            
+            echo "Building for $GOOS/$GOARCH..."
+            
+            # Create a dedicated folder for this release zip
+            release_dir="prymis_${{ steps.next_version.outputs.version }}_${GOOS}_${GOARCH}"
+            mkdir -p "$release_dir"
+            
+            # Build binary
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -o "$release_dir/$output_name" cmd/prymis/main.go
+            
+            # Copy project structure as requested
+            cp -r engine "$release_dir/"
+            cp README.md "$release_dir/" 2>/dev/null || touch "$release_dir/README.md"
+            
+            # Zip it
+            zip -r "${release_dir}.zip" "$release_dir"
+            mv "${release_dir}.zip" build/
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.next_version.outputs.version }}
+          files: build/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.next_version.outputs.version }}

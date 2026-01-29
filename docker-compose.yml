@@ -1,0 +1,7 @@
+version: '3.8'
+services:
+  prymis:
+    build: .
+    image: prymis:latest
+    volumes:
+      - ./output:/root/output

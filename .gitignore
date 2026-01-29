@@ -1,0 +1,16 @@
+# Binaries
+prymis_bin
+prymis
+output.png
+
+# Go
+vendor/
+*.exe
+*.test
+*.prof
+
+# Docker
+.dockerignore
+
+# OS
+.DS_Store
