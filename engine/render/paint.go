@@ -8,7 +8,7 @@ import (
 	"prymis/engine/layout"
 )
 
-func Paint(root *layout.LayoutBox, bounds image.Rectangle) *image.RGBA {
+func Paint(root *layout.LayoutBox, bounds image.Rectangle, url string) *image.RGBA {
 	canvas := image.NewRGBA(bounds)
 
 	// 1. Draw Browser Window Frame (Dark Theme)
@@ -20,15 +20,16 @@ func Paint(root *layout.LayoutBox, bounds image.Rectangle) *image.RGBA {
 	drawCircle(canvas, 40, 20, 6, color.RGBA{255, 189, 46, 255})
 	drawCircle(canvas, 60, 20, 6, color.RGBA{39, 201, 63, 255})
 
-	// 3. Draw Tab
-	tabRect := image.Rect(100, 10, 250, 40)
-	draw.Draw(canvas, tabRect, &image.Uniform{color.RGBA{40, 44, 52, 255}}, image.Point{}, draw.Src)
-	drawBorder(canvas, tabRect, color.RGBA{60, 60, 60, 255})
-
 	// 4. Draw Address Bar
 	addressBarRect := image.Rect(100, 50, 700, 85)
 	draw.Draw(canvas, addressBarRect, &image.Uniform{color.RGBA{30, 33, 39, 255}}, image.Point{}, draw.Src)
 	drawBorder(canvas, addressBarRect, color.RGBA{100, 100, 100, 255})
+
+	// Draw URL simulation (dots/lines representing text)
+	drawTextSimulation(canvas, 120, 67, url, color.RGBA{180, 180, 180, 255})
+
+	// 5. Draw Prymis Logo (Stylized 'P')
+	drawLogo(canvas, 750, 25)
 
 	// 5. Draw Content Area Background
 	contentArea := image.Rect(0, 100, 800, 600)
@@ -70,6 +71,34 @@ func renderBox(canvas *image.RGBA, box *layout.LayoutBox) {
 
 	for _, child := range box.Children {
 		renderBox(canvas, child)
+	}
+}
+
+func drawLogo(canvas *image.RGBA, x, y int) {
+	// Stylized 'P'
+	c := color.RGBA{100, 150, 255, 255}
+	// Vertical bar
+	for i := -10; i < 15; i++ {
+		for j := -2; j < 2; j++ {
+			canvas.Set(x+j, y+i, c)
+		}
+	}
+	// Curve
+	drawCircle(canvas, x+5, y-5, 7, c)
+	drawCircle(canvas, x+5, y-5, 4, color.RGBA{33, 37, 43, 255})
+}
+
+func drawTextSimulation(canvas *image.RGBA, x, y int, text string, c color.Color) {
+	// Draw dots for characters
+	for i := 0; i < len(text); i++ {
+		charX := x + i*8
+		// Randomize height slightly for 'text-like' feel
+		h := 2
+		if text[i] == '/' || text[i] == '.' {
+			h = 4
+		}
+		rect := image.Rect(charX, y-h, charX+5, y+1)
+		draw.Draw(canvas, rect, &image.Uniform{c}, image.Point{}, draw.Src)
 	}
 }
 

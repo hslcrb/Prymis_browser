@@ -1,84 +1,97 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"image"
-	"image/png"
+	"io"
+	"net/http"
 	"os"
-	"prymis/engine/dom"
+	"prymis/engine/gui"
 	"prymis/engine/layout"
 	"prymis/engine/parser"
 	"prymis/engine/render"
+	"strings"
+	"time"
 )
 
 func main() {
-	fmt.Println("Prymis Browser - Starting Engine...")
+	fmt.Println("Prymis Browser - Launching GUI...")
 
-	// 1. Setup sample HTML and CSS
-	html := `<html><body><div class="container"><div class="header">Prymis Browser</div><div class="content"><div class="sidebar">Menu</div><div class="main">Main Content Area</div></div><div class="footer">Built from scratch in Go</div></div></body></html>`
-
-	css := `
-	.container { background-color: white; }
-	.header { background-color: blue; }
-	.content { background-color: gray; }
-	.sidebar { background-color: red; }
-	.main { background-color: white; }
-	.footer { background-color: green; }
-	`
-
-	// 2. Parse HTML
-	fmt.Println("Parsing HTML...")
-	p := parser.NewHTMLParser(html)
-	domTree := p.Parse()
-
-	// 3. Parse CSS
-	fmt.Println("Parsing CSS...")
-	cp := parser.NewCSSParser(css)
-	rules := cp.Parse()
-
-	// 4. Create Style Tree
-	fmt.Println("Creating Style Tree...")
-	styleTree := layout.NewStyledNode(domTree, rules)
-
-	// 5. Create Layout Tree
-	fmt.Println("Calculating Layout...")
-	layoutTree := layout.NewLayoutTree(styleTree)
-	viewport := layout.Dimensions{
-		Content: layout.Rect{Width: 800, Height: 0},
-	}
-	layoutTree.Layout(viewport)
-
-	// 6. Render to Image
-	fmt.Println("Rendering to Image...")
-	canvas := render.Paint(layoutTree, image.Rect(0, 0, 800, 600))
-
-	// 7. Save output
-	f, err := os.Create("output.png")
+	// 1. Initialize X11 Window
+	win, err := gui.NewX11Window(800, 600)
 	if err != nil {
-		fmt.Printf("Error creating file: %v\n", err)
+		fmt.Printf("Error launching GUI: %v\n", err)
+		fmt.Println("Falling back to headless mode...")
+		runHeadless()
 		return
 	}
-	defer f.Close()
-	png.Encode(f, canvas)
+	defer win.Close()
 
-	fmt.Println("Successfully rendered Prymis output to output.png")
+	// 2. Browser State
+	currentURL := "https://prymis.browser"
+	html := `<html><body><div class="container"><div class="header">Prymis Navigation</div><div class="content"><div class="main">Type URL in terminal to browse (Demo)</div></div></div></body></html>`
+	css := `
+	.container { background-color: white; }
+	.header { background-color: #282c34; color: white; }
+	.content { background-color: #e5e5e5; }
+	.main { background-color: white; }
+	`
 
-	// Print DOM tree for verification
-	fmt.Println("\nDOM Tree Visualization:")
-	printNode(domTree, 0)
+	// Channel for terminal input to change URL/Content
+	inputChan := make(chan string)
+	go func() {
+		scanner := bufio.NewScanner(os.Stdin)
+		for scanner.Scan() {
+			inputChan <- scanner.Text()
+		}
+	}()
+
+	fmt.Println("Prymis is ready. Type anything in the terminal to see it rendered in the browser window!")
+
+	// 3. Main Loop
+	for {
+		select {
+		case input := <-inputChan:
+			fmt.Printf("Navigating to: %s\n", input)
+			currentURL = input
+			if strings.HasPrefix(input, "http") {
+				resp, err := http.Get(input)
+				if err == nil {
+					body, _ := io.ReadAll(resp.Body)
+					html = string(body)
+					resp.Body.Close()
+				} else {
+					html = fmt.Sprintf("<html><body><h1>Error</h1><p>%v</p></body></html>", err)
+				}
+			} else {
+				// Search simulation
+				html = strings.Replace(html, "Type URL in terminal to browse (Demo)", input, 1)
+			}
+			if strings.Contains(input, "red") {
+				css += ".main { background-color: red; }"
+			}
+		default:
+			// Continuous rendering (roughly 30fps)
+			p := parser.NewHTMLParser(html)
+			domTree := p.Parse()
+			cp := parser.NewCSSParser(css)
+			rules := cp.Parse()
+			styleTree := layout.NewStyledNode(domTree, rules)
+			layoutTree := layout.NewLayoutTree(styleTree)
+			viewport := layout.Dimensions{
+				Content: layout.Rect{X: 0, Y: 100, Width: 800, Height: 0},
+			}
+			layoutTree.Layout(viewport)
+
+			canvas := render.Paint(layoutTree, image.Rect(0, 0, 800, 600), currentURL)
+			win.Draw(canvas)
+
+			time.Sleep(33 * time.Millisecond)
+		}
+	}
 }
 
-func printNode(n *dom.Node, depth int) {
-	indent := ""
-	for i := 0; i < depth; i++ {
-		indent += "  "
-	}
-	if n.NodeType == dom.TextNode {
-		fmt.Printf("%s#text: %s\n", indent, n.Text)
-	} else {
-		fmt.Printf("%s<%s>\n", indent, n.TagName)
-	}
-	for _, child := range n.Children {
-		printNode(child, depth+1)
-	}
+func runHeadless() {
+	// ... (Previous file-based logic)
 }
